@@ -15,11 +15,6 @@ script_dir: "/home/example/.segments"
 # signal that updates all the segments at once
 update_all_signal: 0
 
-# check every 5 times if any segment is due
-# updates per signal are always instantly
-general_update_interval: 5
-# if this is not given, the interval will be calculated based on the individual segments
-
 segments:
       # scripts are run with sh
     - script: "volume"

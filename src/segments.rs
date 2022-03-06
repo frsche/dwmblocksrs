@@ -1,10 +1,7 @@
 pub mod constant;
 pub mod program_output;
 
-use std::{
-    cell::RefCell,
-    time::{Duration, Instant},
-};
+use std::{cell::RefCell, time::Duration};
 
 use crate::config::Configuration;
 
@@ -23,8 +20,7 @@ pub(crate) struct Segment {
     icon: String,
     hide_if_empty: bool,
 
-    last_update: RefCell<Instant>,
-    last_value: RefCell<String>,
+    current_value: RefCell<String>,
 }
 
 #[derive(Debug)]
@@ -52,9 +48,7 @@ impl Segment {
             .unwrap_or("".into());
         let icon = icon.unwrap_or("".into());
 
-        let now = Instant::now();
-
-        let segment = Segment {
+        let s = Segment {
             kind,
             update_interval,
             signals,
@@ -64,32 +58,19 @@ impl Segment {
             icon,
             hide_if_empty,
 
-            last_update: RefCell::new(now),
-            last_value: RefCell::new("".into()),
+            current_value: RefCell::new("".into()),
         };
 
-        segment.update(&now);
-
-        segment
+        s.update();
+        s
     }
 
-    pub(crate) fn get_value(&self, now: &Instant) -> String {
-        if self.update_interval.is_some()
-            && self.last_update.borrow().clone() + self.update_interval.unwrap() < *now
-        {
-            self.update(now)
-        } else {
-            self.last_value.borrow().clone()
-        }
+    pub(crate) fn update(&self) {
+        *self.current_value.borrow_mut() = self.compute_value();
     }
 
-    pub(crate) fn update(&self, now: &Instant) -> String {
-        let new_value = self.compute_value();
-
-        *self.last_update.borrow_mut() = now.clone();
-        *self.last_value.borrow_mut() = new_value.clone();
-
-        new_value
+    pub(crate) fn current_value(&self) -> String {
+        self.current_value.borrow().clone()
     }
 
     pub(crate) fn compute_value(&self) -> String {
@@ -149,7 +130,6 @@ mod tests {
             None,
             false,
             &Configuration {
-                update_interval: None,
                 left_separator: None,
                 right_separator: None,
             },
@@ -228,7 +208,6 @@ mod tests {
                 None,
                 false,
                 &Configuration {
-                    update_interval: None,
                     left_separator: Some(">".into()),
                     right_separator: None,
                 },
@@ -248,30 +227,11 @@ mod tests {
                 None,
                 false,
                 &Configuration {
-                    update_interval: None,
                     left_separator: Some(">".into()),
                     right_separator: None,
                 },
             );
             assert_eq!(&segment.compute_value(), "!test")
-        }
-
-        #[test]
-        fn update_interval() {
-            let mut s = default_segment();
-            let mut now = Instant::now();
-            s.update_interval = Some(Duration::from_secs(2));
-            s.last_value = RefCell::new("old_value".into());
-            // 2 seconds are not elapsed since creation
-            // therefore: use last value
-            assert_eq!(s.get_value(&now), "old_value");
-            now += Duration::from_secs(3);
-            // now a new value should be computed
-            // therefore: use text from segment kind
-            assert_eq!(s.get_value(&now), "test");
-            // now, last_value and last_update should be set
-            assert_eq!(*s.last_update.borrow(), now);
-            assert_eq!(*s.last_value.borrow(), "test".to_owned());
         }
     }
 }

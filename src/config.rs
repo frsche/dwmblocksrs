@@ -11,7 +11,6 @@ struct ConfigFile {
     left_separator: Option<String>,
     right_separator: Option<String>,
     update_all_signal: Option<u32>,
-    general_update_interval: Option<u64>,
     script_dir: Option<String>,
 }
 
@@ -49,12 +48,11 @@ enum SegmentKindConfig {
 
 #[derive(Debug)]
 pub(crate) struct Configuration {
-    pub update_interval: Option<Duration>,
     pub left_separator: Option<String>,
     pub right_separator: Option<String>,
 }
 
-pub(crate) fn parse_config(config: PathBuf) -> Result<(Vec<Segment>, Configuration), String> {
+pub(crate) fn parse_config(config: PathBuf) -> Result<Vec<Segment>, String> {
     let config_str = read_to_string(&config).map_err(|e| {
         format!(
             "Error reading config file '{}': {}",
@@ -70,14 +68,12 @@ pub(crate) fn parse_config(config: PathBuf) -> Result<(Vec<Segment>, Configurati
         segments,
         left_separator,
         right_separator,
-        general_update_interval,
         update_all_signal,
         script_dir,
     } = serde_yaml::from_str(&config_str)
         .map_err(|e| SerdeError::new(config_str, e).to_string())?;
 
     let configuration = Configuration {
-        update_interval: general_update_interval.map(Duration::from_secs),
         left_separator,
         right_separator,
     };
@@ -145,5 +141,5 @@ pub(crate) fn parse_config(config: PathBuf) -> Result<(Vec<Segment>, Configurati
         })
         .collect::<Result<Vec<Segment>,String>>()?;
 
-    Ok((segments, configuration))
+    Ok(segments)
 }

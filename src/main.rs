@@ -7,13 +7,12 @@ use std::{
     path::PathBuf,
     ptr,
     sync::mpsc::{channel, Receiver},
-    time::{Duration, Instant},
+    thread,
 };
 
 use clap::{Arg, Command};
-use config::{parse_config, Configuration};
+use config::parse_config;
 use log::{error, info};
-use num_integer::gcd;
 use segments::{Segment, SegmentReference};
 use signals::spawn_signal_handler;
 use x11::xlib::{XCloseDisplay, XDefaultScreen, XOpenDisplay, XRootWindow, XStoreName};
@@ -34,60 +33,19 @@ fn set_statusbar(status_text: &str) {
     }
 }
 
-fn update_interval(segments: &[Segment]) -> Option<Duration> {
-    // the update interval is the gcd out of all individual update intervals
-    let interval = segments
-        .iter()
-        .filter_map(|segment| segment.update_interval)
-        .map(|duration| duration.as_millis() as u64)
-        .reduce(gcd)
-        .map(Duration::from_millis);
-
-    if let Some(interval) = interval.as_ref() {
-        info!("calculated general update interval of {:?}", interval);
-    } else {
-        info!("segments are updated through signals only")
-    }
-
-    interval
-}
-
-fn get_status_text(segments: &[Segment], now: &Instant) -> String {
+fn get_status_text(segments: &[Segment]) -> String {
     segments
         .iter()
-        .map(|s| s.get_value(&now))
+        .map(|s| s.current_value())
         .collect::<String>()
 }
 
-fn update_loop(segments: Vec<Segment>, signals: Receiver<usize>, config: Configuration) {
-    // use the general update interval provided in the configuration
-    let update_interval = config
-        .update_interval
-        // or else calculate the update interval based on the individual intervals
-        .or_else(|| update_interval(&segments));
+fn update_loop(segments: Vec<Segment>, signals: Receiver<usize>) {
+    let mut last_status_text = "".into();
 
-    // set the initial status bar text
-    let mut last_status_text = get_status_text(&segments, &Instant::now());
-    set_statusbar(&last_status_text);
-
-    loop {
-        let now = Instant::now();
-
-        // wait for a signal to arrive in the channel
-        // if we have a general update interval, wait that long
-        // otherwise (only signals are used), wait infinitly
-        if let Ok(segment_ref) = match update_interval {
-            Some(interval) => signals.recv_timeout(interval),
-            None => Ok(signals.recv().unwrap()),
-        } {
-            // if a signal arrived, manually update the segment
-            segments[segment_ref].update(&now);
-        };
-
-        // get the current status text
-        // here, all the segments calculate a new value
-        // either a cached one, or a new one if the corresponding interval exceeded
-        let status_text = get_status_text(&segments, &now);
+    for segment_ref in signals.iter() {
+        segments[segment_ref].update();
+        let status_text = get_status_text(&segments);
 
         // only set the text if it has changed
         if last_status_text != status_text {
@@ -98,12 +56,31 @@ fn update_loop(segments: Vec<Segment>, signals: Receiver<usize>, config: Configu
 }
 
 fn run(config: PathBuf) -> Result<(), String> {
-    let (segments, config) = parse_config(config)?;
+    let segments = parse_config(config)?;
 
     let (tx, rx) = channel::<SegmentReference>();
+
+    for (segment_ref, interval) in segments
+        .iter()
+        .filter_map(|s| {
+            if let Some(interval) = s.update_interval {
+                Some(interval)
+            } else {
+                None
+            }
+        })
+        .enumerate()
+    {
+        let channel = tx.clone();
+        thread::spawn(move || loop {
+            thread::sleep(interval);
+            channel.send(segment_ref).unwrap();
+        });
+    }
+
     spawn_signal_handler(&segments, tx);
 
-    update_loop(segments, rx, config);
+    update_loop(segments, rx);
 
     Ok(())
 }
@@ -145,8 +122,9 @@ mod tests {
 
     #[test]
     fn test_sample_config() {
-        let (segments, _) = parse_config("test_config.yaml".into()).expect("config should parse");
-        let status_text = get_status_text(&segments, &Instant::now());
+        let segments = parse_config("test_config.yaml".into()).expect("config should parse");
+        let status_text = get_status_text(&segments);
+        println!("{}", status_text);
         assert_eq!(
             "Segment1 | Segment2 | hello world |  | %%% | $>>><<<",
             status_text
