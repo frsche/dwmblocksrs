@@ -1,5 +1,5 @@
 mod config;
-mod segments;
+pub mod segments;
 mod signals;
 
 use std::{

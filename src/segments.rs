@@ -1,5 +1,5 @@
-pub(crate) mod constant;
-pub(crate) mod program_output;
+pub mod constant;
+pub mod program_output;
 
 use std::{
     cell::RefCell,
@@ -111,6 +111,149 @@ impl SegmentKind {
         match self {
             SegmentKind::ProgramOutput(p) => p.compute_value(),
             SegmentKind::Constant(c) => c.compute_value(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    macro_rules! test_segment_kinds {
+        ( $( $name:ident: $segment:expr => $expect:expr, )+ ) => {
+            mod segment_kinds {
+                use super::*;
+                $(
+                    #[test]
+                    fn $name() {
+                    let kind : SegmentKind = $segment.into();
+                    assert_eq!(&kind.compute_value(), $expect);
+                    }
+                )+
+            }
+        }
+    }
+
+    test_segment_kinds!(
+        constant: Constant::new("constant".into()) => "constant",
+        program: ProgramOutput::new("echo".into(),vec!["hello".into()]) => "hello",
+    );
+
+    fn default_segment() -> Segment {
+        Segment::new(
+            Constant::new("test".into()).into(),
+            None,
+            vec![],
+            None,
+            None,
+            None,
+            false,
+            &Configuration {
+                update_interval: None,
+                left_separator: None,
+                right_separator: None,
+            },
+        )
+    }
+
+    mod segment {
+        use super::*;
+
+        #[test]
+        fn consant() {
+            let s = default_segment();
+            assert_eq!(&s.compute_value(), "test");
+        }
+
+        #[test]
+        fn left_separator() {
+            let mut s = default_segment();
+            s.left_separator = ">".into();
+            assert_eq!(&s.compute_value(), ">test");
+        }
+
+        #[test]
+        fn right_separator() {
+            let mut s = default_segment();
+            s.right_separator = "<".into();
+            assert_eq!(&s.compute_value(), "test<");
+        }
+
+        #[test]
+        fn icon() {
+            let mut s = default_segment();
+            s.icon = "$".into();
+            assert_eq!(&s.compute_value(), "$test");
+        }
+
+        #[test]
+        fn all() {
+            let mut s = default_segment();
+            s.left_separator = ">".into();
+            s.right_separator = "<".into();
+            s.icon = "$".into();
+            assert_eq!(&s.compute_value(), ">$test<");
+        }
+
+        #[test]
+        fn hide_if_empty_false() {
+            let mut s = default_segment();
+            s.kind = Constant::new("".into()).into();
+            s.left_separator = ">".into();
+            s.right_separator = "<".into();
+            s.icon = "$".into();
+            assert_eq!(&s.compute_value(), ">$<");
+        }
+
+        #[test]
+        fn hide_if_empty_true() {
+            let mut s = default_segment();
+            s.kind = Constant::new("".into()).into();
+            s.left_separator = ">".into();
+            s.right_separator = "<".into();
+            s.icon = "$".into();
+            s.hide_if_empty = true;
+            assert_eq!(&s.compute_value(), "");
+        }
+
+        #[test]
+        fn config_left_separator() {
+            let kind = Constant::new("test".into()).into();
+            let segment = Segment::new(
+                kind,
+                None,
+                vec![],
+                None,
+                None,
+                None,
+                false,
+                &Configuration {
+                    update_interval: None,
+                    left_separator: Some(">".into()),
+                    right_separator: None,
+                },
+            );
+            assert_eq!(&segment.compute_value(), ">test")
+        }
+
+        #[test]
+        fn config_left_separator_overwrite() {
+            let kind = Constant::new("test".into()).into();
+            let segment = Segment::new(
+                kind,
+                None,
+                vec![],
+                Some("!".into()),
+                None,
+                None,
+                false,
+                &Configuration {
+                    update_interval: None,
+                    left_separator: Some(">".into()),
+                    right_separator: None,
+                },
+            );
+            assert_eq!(&segment.compute_value(), "!test")
         }
     }
 }

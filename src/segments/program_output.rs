@@ -5,13 +5,13 @@ use log::warn;
 use super::SegmentKind;
 
 #[derive(Debug)]
-pub(crate) struct ProgramOutput {
+pub struct ProgramOutput {
     program: PathBuf,
     args: Vec<String>,
 }
 
 impl ProgramOutput {
-    pub(crate) fn new(program: PathBuf, args: Vec<String>) -> Self {
+    pub fn new(program: PathBuf, args: Vec<String>) -> Self {
         ProgramOutput { program, args }
     }
 

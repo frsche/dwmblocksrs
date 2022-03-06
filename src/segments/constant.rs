@@ -1,12 +1,12 @@
 use super::SegmentKind;
 
 #[derive(Debug)]
-pub(crate) struct Constant {
+pub struct Constant {
     text: String,
 }
 
 impl Constant {
-    pub(crate) fn new(text: String) -> Self {
+    pub fn new(text: String) -> Self {
         Self { text }
     }
 
