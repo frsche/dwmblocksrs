@@ -72,7 +72,9 @@ pub(crate) fn parse_config(config: PathBuf) -> Result<Vec<Segment>, String> {
     } = serde_yaml::from_str(&config_str)
         .map_err(|e| SerdeError::new(config_str, e).to_string())?;
 
-    let script_dir = script_dir.map(PathBuf::from).unwrap_or_default();
+    let script_dir = script_dir
+        .map(expand_path)
+        .unwrap_or_else(|| Ok(Default::default()))?;
 
     if !script_dir.is_dir() {
         return Err(format!(
@@ -115,11 +117,11 @@ fn parse_segment(
 
     let kind = match kind {
         SegmentKindConfig::Program { program, args } => {
-            segments::program_output::ProgramOutput::new(program.into(), args).into()
+            segments::program_output::ProgramOutput::new(expand_path(program)?, args).into()
         }
         SegmentKindConfig::ShellScript { script, mut args } => {
             let mut script_path = config.script_dir.clone();
-            script_path.push(PathBuf::from(script));
+            script_path.push(expand_path(script)?);
             args.insert(0, script_path.to_str().unwrap().into());
 
             segments::program_output::ProgramOutput::new("/bin/sh".into(), args).into()
@@ -157,4 +159,9 @@ fn parse_segment(
         hide_if_empty,
         &config,
     ))
+}
+
+fn expand_path<T: AsRef<str>>(path_str: T) -> Result<PathBuf, String> {
+    let str = shellexpand::full(&path_str).map_err(|x| x.to_string())?;
+    Ok(PathBuf::from(str.as_ref()))
 }
