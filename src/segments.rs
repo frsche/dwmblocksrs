@@ -255,5 +255,23 @@ mod tests {
             );
             assert_eq!(&segment.compute_value(), "!test")
         }
+
+        #[test]
+        fn update_interval() {
+            let mut s = default_segment();
+            let mut now = Instant::now();
+            s.update_interval = Some(Duration::from_secs(2));
+            s.last_value = RefCell::new("old_value".into());
+            // 2 seconds are not elapsed since creation
+            // therefore: use last value
+            assert_eq!(s.get_value(&now), "old_value");
+            now += Duration::from_secs(3);
+            // now a new value should be computed
+            // therefore: use text from segment kind
+            assert_eq!(s.get_value(&now), "test");
+            // now, last_value and last_update should be set
+            assert_eq!(*s.last_update.borrow(), now);
+            assert_eq!(*s.last_value.borrow(), "test".to_owned());
+        }
     }
 }

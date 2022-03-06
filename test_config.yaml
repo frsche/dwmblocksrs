@@ -1,0 +1,27 @@
+left_separator: " | "
+script_dir: "test_script_dir"
+segments:
+    - script: "segment1"
+      left_separator: ""
+
+    - script: "segment2"
+      update_interval: 60
+      signals: [4]
+
+    - program: "echo"
+      args: ["hello", "world"]
+      update_interval: 60
+      hide_if_empty: true
+
+    - script: "empty"
+      update_interval: 10
+
+    - constant: "%%%"
+
+    - script: "empty"
+      update_interval: 10
+      hide_if_empty: true
+
+    - constant: ">>>"
+      icon: "$"
+      right_separator: "<<<"

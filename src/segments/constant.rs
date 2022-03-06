@@ -1,7 +1,7 @@
 use super::SegmentKind;
 
 #[derive(Debug)]
-pub struct Constant {
+pub(crate) struct Constant {
     text: String,
 }
 

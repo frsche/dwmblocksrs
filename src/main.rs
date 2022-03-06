@@ -138,3 +138,18 @@ fn main() {
         error!("{e}");
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sample_config() {
+        let (segments, _) = parse_config("test_config.yaml".into()).expect("config should parse");
+        let status_text = get_status_text(&segments, &Instant::now());
+        assert_eq!(
+            "Segment1 | Segment2 | hello world |  | %%% | $>>><<<",
+            status_text
+        );
+    }
+}

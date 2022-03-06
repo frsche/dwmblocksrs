@@ -5,7 +5,7 @@ use log::warn;
 use super::SegmentKind;
 
 #[derive(Debug)]
-pub struct ProgramOutput {
+pub(crate) struct ProgramOutput {
     program: PathBuf,
     args: Vec<String>,
 }
