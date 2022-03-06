@@ -25,7 +25,7 @@ impl ProgramOutput {
                     self.args,
                     e
                 );
-                return "".into();
+                return "ERROR".into();
             }
         };
 

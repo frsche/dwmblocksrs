@@ -3,7 +3,7 @@ use std::{fs::read_to_string, path::PathBuf, time::Duration};
 use format_serde_error::SerdeError;
 use serde::{Deserialize, Serialize};
 
-use crate::segments::{self, Segment};
+use crate::segments::{self, Segment, SegmentId};
 
 #[derive(Deserialize, Serialize, Debug)]
 struct ConfigFile {
@@ -50,6 +50,8 @@ enum SegmentKindConfig {
 pub(crate) struct Configuration {
     pub left_separator: Option<String>,
     pub right_separator: Option<String>,
+    pub script_dir: PathBuf,
+    pub update_all_signal: Option<u32>,
 }
 
 pub(crate) fn parse_config(config: PathBuf) -> Result<Vec<Segment>, String> {
@@ -61,9 +63,6 @@ pub(crate) fn parse_config(config: PathBuf) -> Result<Vec<Segment>, String> {
         )
     })?;
 
-    let sigrtmin = libc::SIGRTMIN();
-    let sigrtmax = libc::SIGRTMAX();
-
     let ConfigFile {
         segments,
         left_separator,
@@ -72,11 +71,6 @@ pub(crate) fn parse_config(config: PathBuf) -> Result<Vec<Segment>, String> {
         script_dir,
     } = serde_yaml::from_str(&config_str)
         .map_err(|e| SerdeError::new(config_str, e).to_string())?;
-
-    let configuration = Configuration {
-        left_separator,
-        right_separator,
-    };
 
     let script_dir = script_dir.map(PathBuf::from).unwrap_or_default();
 
@@ -87,39 +81,61 @@ pub(crate) fn parse_config(config: PathBuf) -> Result<Vec<Segment>, String> {
         ));
     }
 
+    let configuration = Configuration {
+        left_separator,
+        right_separator,
+        script_dir,
+        update_all_signal,
+    };
+
     let segments = segments
         .into_iter()
-        .map(|segment_config| {
-            let SegmentConfig {
-                update_interval,
-                signals: mut signal_offsets,
-                kind,
-                left_separator,
-                right_separator,
-                icon,
-                hide_if_empty,
-            } = segment_config;
+        .enumerate()
+        .map(|(segment_id, segment_config)| {
+            parse_segment(segment_config, segment_id, &configuration)
+        })
+        .collect::<Result<Vec<Segment>, String>>()?;
 
-            let kind = match kind {
-                SegmentKindConfig::Program { program, args } => {
-                    segments::program_output::ProgramOutput::new(program.into(), args).into()
-                }
-                SegmentKindConfig::ShellScript { script, mut args } => {
-                    let mut script_path = script_dir.clone();
-                    script_path.push(PathBuf::from(script));
-                    args.insert(0, script_path.to_str().unwrap().into());
+    Ok(segments)
+}
+fn parse_segment(
+    segment_config: SegmentConfig,
+    segment_id: SegmentId,
+    config: &Configuration,
+) -> Result<Segment, String> {
+    let SegmentConfig {
+        update_interval,
+        signals: mut signal_offsets,
+        kind,
+        left_separator,
+        right_separator,
+        icon,
+        hide_if_empty,
+    } = segment_config;
 
-                    segments::program_output::ProgramOutput::new("/bin/sh".into(), args).into()
-                }
-                SegmentKindConfig::Constant { constant } => segments::constant::Constant::new(constant.clone()).into(),
-            };
+    let kind = match kind {
+        SegmentKindConfig::Program { program, args } => {
+            segments::program_output::ProgramOutput::new(program.into(), args).into()
+        }
+        SegmentKindConfig::ShellScript { script, mut args } => {
+            let mut script_path = config.script_dir.clone();
+            script_path.push(PathBuf::from(script));
+            args.insert(0, script_path.to_str().unwrap().into());
 
-            let update_interval = update_interval.map(Duration::from_secs);
+            segments::program_output::ProgramOutput::new("/bin/sh".into(), args).into()
+        }
+        SegmentKindConfig::Constant { constant } => {
+            segments::constant::Constant::new(constant.clone()).into()
+        }
+    };
 
-            if let Some(offset) = update_all_signal {
-                signal_offsets.push(offset);
-            }
-            let signals = signal_offsets
+    let sigrtmin = libc::SIGRTMIN();
+    let sigrtmax = libc::SIGRTMAX();
+
+    if let Some(offset) = config.update_all_signal {
+        signal_offsets.push(offset);
+    }
+    let signals = signal_offsets
                 .into_iter()
                 .map(|offset| {
                     let signal = offset as i32 + sigrtmin;
@@ -128,18 +144,17 @@ pub(crate) fn parse_config(config: PathBuf) -> Result<Vec<Segment>, String> {
                 })
                 .collect::<Result<Vec<_>,_>>()?;
 
-            Ok(Segment::new(
-                kind,
-                update_interval,
-                signals,
-                left_separator,
-                right_separator,
-                icon,
-                hide_if_empty,
-                &configuration,
-            ))
-        })
-        .collect::<Result<Vec<Segment>,String>>()?;
+    let update_interval = update_interval.map(Duration::from_secs);
 
-    Ok(segments)
+    Ok(Segment::new(
+        kind,
+        update_interval,
+        signals,
+        segment_id,
+        left_separator,
+        right_separator,
+        icon,
+        hide_if_empty,
+        &config,
+    ))
 }

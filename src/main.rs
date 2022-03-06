@@ -7,13 +7,12 @@ use std::{
     path::PathBuf,
     ptr,
     sync::mpsc::{channel, Receiver},
-    thread,
 };
 
 use clap::{Arg, Command};
 use config::parse_config;
 use log::{error, info};
-use segments::{Segment, SegmentReference};
+use segments::{Segment, SegmentId};
 use signals::spawn_signal_handler;
 use x11::xlib::{XCloseDisplay, XDefaultScreen, XOpenDisplay, XRootWindow, XStoreName};
 
@@ -58,24 +57,10 @@ fn update_loop(segments: Vec<Segment>, signals: Receiver<usize>) {
 fn run(config: PathBuf) -> Result<(), String> {
     let segments = parse_config(config)?;
 
-    let (tx, rx) = channel::<SegmentReference>();
+    let (tx, rx) = channel::<SegmentId>();
 
-    for (segment_ref, interval) in segments
-        .iter()
-        .filter_map(|s| {
-            if let Some(interval) = s.update_interval {
-                Some(interval)
-            } else {
-                None
-            }
-        })
-        .enumerate()
-    {
-        let channel = tx.clone();
-        thread::spawn(move || loop {
-            thread::sleep(interval);
-            channel.send(segment_ref).unwrap();
-        });
+    for segment in &segments {
+        segment.run_update_loop(tx.clone());
     }
 
     spawn_signal_handler(&segments, tx);

@@ -1,19 +1,20 @@
 pub mod constant;
 pub mod program_output;
 
-use std::{cell::RefCell, time::Duration};
+use std::{cell::RefCell, sync::mpsc::Sender, thread, time::Duration};
 
 use crate::config::Configuration;
 
 use self::{constant::Constant, program_output::ProgramOutput};
 
-pub(crate) type SegmentReference = usize;
+pub(crate) type SegmentId = usize;
 
 #[derive(Debug)]
 pub(crate) struct Segment {
-    pub kind: SegmentKind,
-    pub update_interval: Option<Duration>,
+    kind: SegmentKind,
+    update_interval: Option<Duration>,
     pub signals: Vec<i32>,
+    segment_id: SegmentId,
 
     left_separator: String,
     right_separator: String,
@@ -34,6 +35,7 @@ impl Segment {
         kind: SegmentKind,
         update_interval: Option<Duration>,
         signals: Vec<i32>,
+        segment_id: SegmentId,
         left_separator: Option<String>,
         right_separator: Option<String>,
         icon: Option<String>,
@@ -52,6 +54,7 @@ impl Segment {
             kind,
             update_interval,
             signals,
+            segment_id,
 
             left_separator,
             right_separator,
@@ -63,6 +66,16 @@ impl Segment {
 
         s.update();
         s
+    }
+
+    pub(crate) fn run_update_loop(&self, channel: Sender<SegmentId>) {
+        if let Some(interval) = self.update_interval {
+            let segment_id = self.segment_id;
+            thread::spawn(move || loop {
+                thread::sleep(interval);
+                channel.send(segment_id).unwrap();
+            });
+        }
     }
 
     pub(crate) fn update(&self) {
@@ -98,6 +111,8 @@ impl SegmentKind {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use super::*;
 
     macro_rules! test_segment_kinds {
@@ -125,6 +140,7 @@ mod tests {
             Constant::new("test".into()).into(),
             None,
             vec![],
+            0,
             None,
             None,
             None,
@@ -132,6 +148,8 @@ mod tests {
             &Configuration {
                 left_separator: None,
                 right_separator: None,
+                script_dir: PathBuf::default(),
+                update_all_signal: None,
             },
         )
     }
@@ -203,6 +221,7 @@ mod tests {
                 kind,
                 None,
                 vec![],
+                0,
                 None,
                 None,
                 None,
@@ -210,6 +229,8 @@ mod tests {
                 &Configuration {
                     left_separator: Some(">".into()),
                     right_separator: None,
+                    script_dir: PathBuf::default(),
+                    update_all_signal: None,
                 },
             );
             assert_eq!(&segment.compute_value(), ">test")
@@ -222,6 +243,7 @@ mod tests {
                 kind,
                 None,
                 vec![],
+                0,
                 Some("!".into()),
                 None,
                 None,
@@ -229,6 +251,8 @@ mod tests {
                 &Configuration {
                     left_separator: Some(">".into()),
                     right_separator: None,
+                    script_dir: PathBuf::default(),
+                    update_all_signal: None,
                 },
             );
             assert_eq!(&segment.compute_value(), "!test")

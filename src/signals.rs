@@ -2,9 +2,9 @@ use std::{collections::HashMap, sync::mpsc::Sender, thread};
 
 use signal_hook::iterator::Signals;
 
-use crate::segments::{Segment, SegmentReference};
+use crate::segments::{Segment, SegmentId};
 
-pub(crate) fn spawn_signal_handler(segments: &[Segment], channel: Sender<SegmentReference>) {
+pub(crate) fn spawn_signal_handler(segments: &[Segment], channel: Sender<SegmentId>) {
     let signals_map = segments
         .iter()
         .enumerate()
@@ -17,7 +17,7 @@ pub(crate) fn spawn_signal_handler(segments: &[Segment], channel: Sender<Segment
         })
         .fold(
             HashMap::new(),
-            |mut map: HashMap<i32, Vec<SegmentReference>>, (signal, segment)| {
+            |mut map: HashMap<i32, Vec<SegmentId>>, (signal, segment)| {
                 map.entry(signal).or_default().push(segment);
                 map
             },
