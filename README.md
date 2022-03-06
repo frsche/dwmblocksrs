@@ -10,7 +10,7 @@ dwm statusbar heavily inspired by [dwmblocks](https://github.com/torrinfail/dwmb
 # default separator that all segments use
 left_separator: "  "
 # scripts are expected to be in this folder
-script_dir: "/home/example/.segments"
+script_dir: "~/.segments"
 
 # signal that updates all the segments at once
 update_all_signal: 0
