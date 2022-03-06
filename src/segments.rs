@@ -72,8 +72,8 @@ impl Segment {
         if let Some(interval) = self.update_interval {
             let segment_id = self.segment_id;
             thread::spawn(move || loop {
-                thread::sleep(interval);
                 channel.send(segment_id).unwrap();
+                thread::sleep(interval);
             });
         }
     }
