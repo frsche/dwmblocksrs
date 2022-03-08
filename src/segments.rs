@@ -1,7 +1,9 @@
 pub mod constant;
 pub mod program_output;
 
-use std::{cell::RefCell, sync::mpsc::Sender, thread, time::Duration};
+use std::time::Duration;
+
+use async_std::{channel::Sender, task};
 
 use crate::config::Configuration;
 
@@ -20,8 +22,6 @@ pub(crate) struct Segment {
     right_separator: String,
     icon: String,
     hide_if_empty: bool,
-
-    current_value: RefCell<String>,
 }
 
 #[derive(Debug)]
@@ -43,14 +43,14 @@ impl Segment {
         config: &Configuration,
     ) -> Self {
         let left_separator = left_separator
-            .or(config.left_separator.clone())
-            .unwrap_or("".into());
+            .or_else(|| config.left_separator.clone())
+            .unwrap_or_else(|| "".into());
         let right_separator = right_separator
-            .or(config.right_separator.clone())
-            .unwrap_or("".into());
-        let icon = icon.unwrap_or("".into());
+            .or_else(|| config.right_separator.clone())
+            .unwrap_or_else(|| "".into());
+        let icon = icon.unwrap_or_else(|| "".into());
 
-        let s = Segment {
+        Segment {
             kind,
             update_interval,
             signals,
@@ -60,30 +60,17 @@ impl Segment {
             right_separator,
             icon,
             hide_if_empty,
-
-            current_value: RefCell::new("".into()),
-        };
-
-        s.update();
-        s
-    }
-
-    pub(crate) fn run_update_loop(&self, channel: Sender<SegmentId>) {
-        if let Some(interval) = self.update_interval {
-            let segment_id = self.segment_id;
-            thread::spawn(move || loop {
-                channel.send(segment_id).unwrap();
-                thread::sleep(interval);
-            });
         }
     }
 
-    pub(crate) fn update(&self) {
-        *self.current_value.borrow_mut() = self.compute_value();
-    }
-
-    pub(crate) fn current_value(&self) -> String {
-        self.current_value.borrow().clone()
+    pub(crate) async fn run_update_loop(&self, channel: Sender<SegmentId>) {
+        if let Some(interval) = self.update_interval {
+            let segment_id = self.segment_id;
+            task::spawn(async move {
+                channel.send(segment_id).await.unwrap();
+                task::sleep(interval).await;
+            });
+        }
     }
 
     pub(crate) fn compute_value(&self) -> String {

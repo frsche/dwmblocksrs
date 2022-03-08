@@ -15,8 +15,8 @@ impl Constant {
     }
 }
 
-impl Into<SegmentKind> for Constant {
-    fn into(self) -> SegmentKind {
-        SegmentKind::Constant(self)
+impl From<Constant> for SegmentKind {
+    fn from(constant: Constant) -> SegmentKind {
+        SegmentKind::Constant(constant)
     }
 }

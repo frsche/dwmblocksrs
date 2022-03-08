@@ -1,9 +1,15 @@
 use std::{fs::read_to_string, path::PathBuf, time::Duration};
 
 use format_serde_error::SerdeError;
+use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 
 use crate::segments::{self, Segment, SegmentId};
+
+lazy_static! {
+    static ref SIGRTMIN: i32 = libc::SIGRTMIN();
+    static ref SIGRTMAX: i32 = libc::SIGRTMAX();
+}
 
 #[derive(Deserialize, Serialize, Debug)]
 struct ConfigFile {
@@ -127,12 +133,9 @@ fn parse_segment(
             segments::program_output::ProgramOutput::new("/bin/sh".into(), args).into()
         }
         SegmentKindConfig::Constant { constant } => {
-            segments::constant::Constant::new(constant.clone()).into()
+            segments::constant::Constant::new(constant).into()
         }
     };
-
-    let sigrtmin = libc::SIGRTMIN();
-    let sigrtmax = libc::SIGRTMAX();
 
     if let Some(offset) = config.update_all_signal {
         signal_offsets.push(offset);
@@ -140,8 +143,8 @@ fn parse_segment(
     let signals = signal_offsets
                 .into_iter()
                 .map(|offset| {
-                    let signal = offset as i32 + sigrtmin;
-                    if signal >= sigrtmin && signal <= sigrtmax {Ok(signal)} else {
+                    let signal = offset as i32 + *SIGRTMIN;
+                    if signal >= *SIGRTMIN && signal <= *SIGRTMAX {Ok(signal)} else {
                         Err(format!("signal offset {offset} results in signal {signal}, which is not in the valid range"))}
                 })
                 .collect::<Result<Vec<_>,_>>()?;
@@ -157,7 +160,7 @@ fn parse_segment(
         right_separator,
         icon,
         hide_if_empty,
-        &config,
+        config,
     ))
 }
 

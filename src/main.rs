@@ -2,17 +2,14 @@ mod config;
 pub mod segments;
 mod signals;
 
-use std::{
-    ffi::CString,
-    path::PathBuf,
-    ptr,
-    sync::mpsc::{channel, Receiver},
-};
+use async_std::prelude::*;
+use std::{ffi::CString, path::PathBuf, ptr};
 
+use async_std::channel::{self, Receiver};
 use clap::{Arg, Command};
 use config::parse_config;
-use log::{error, info};
-use segments::{Segment, SegmentId};
+use log::{error, info, Level};
+use segments::Segment;
 use signals::spawn_signal_handler;
 use x11::xlib::{XCloseDisplay, XDefaultScreen, XOpenDisplay, XRootWindow, XStoreName};
 
@@ -32,21 +29,24 @@ fn set_statusbar(status_text: &str) {
     }
 }
 
-fn get_status_text(segments: &[Segment]) -> String {
-    segments
+async fn update_loop(segments: Vec<Segment>, mut updates: Receiver<usize>) {
+    // a vector with the current text for each segment
+    let mut current_status = segments
         .iter()
-        .map(|s| s.current_value())
-        .collect::<String>()
-}
+        .map(|s| s.compute_value())
+        .collect::<Vec<_>>();
 
-fn update_loop(segments: Vec<Segment>, signals: Receiver<usize>) {
-    let mut last_status_text = "".into();
+    // set the initial status text
+    let mut last_status_text = current_status.join("");
+    set_statusbar(&last_status_text);
 
-    for segment_ref in signals.iter() {
-        segments[segment_ref].update();
-        let status_text = get_status_text(&segments);
-
-        // only set the text if it has changed
+    // wait for a new update
+    while let Some(segment_ref) = updates.next().await {
+        // compute the new value of the requested segment
+        current_status[segment_ref] = segments[segment_ref].compute_value();
+        // and compute the new status text
+        let status_text = current_status.join("");
+        // only set the status text if it is different than before
         if last_status_text != status_text {
             set_statusbar(&status_text);
             last_status_text = status_text;
@@ -54,24 +54,24 @@ fn update_loop(segments: Vec<Segment>, signals: Receiver<usize>) {
     }
 }
 
-fn run(config: PathBuf) -> Result<(), String> {
+async fn run(config: PathBuf) -> Result<(), String> {
     let segments = parse_config(config)?;
 
-    let (tx, rx) = channel::<SegmentId>();
+    let (tx, rx) = channel::unbounded();
 
     for segment in &segments {
-        segment.run_update_loop(tx.clone());
+        segment.run_update_loop(tx.clone()).await;
     }
 
-    spawn_signal_handler(&segments, tx);
-
-    update_loop(segments, rx);
+    spawn_signal_handler(&segments, tx).await;
+    update_loop(segments, rx).await;
 
     Ok(())
 }
 
-fn main() {
-    simple_logger::init().unwrap();
+#[async_std::main]
+async fn main() {
+    simple_logger::init_with_level(Level::Info).unwrap();
 
     let matches = Command::new("dwmblocksrs")
         .arg(
@@ -96,7 +96,7 @@ fn main() {
 
     info!("loading config file '{}'", config_path.to_str().unwrap());
 
-    if let Err(e) = run(config_path) {
+    if let Err(e) = run(config_path).await {
         error!("{e}");
     }
 }
@@ -108,8 +108,10 @@ mod tests {
     #[test]
     fn test_sample_config() {
         let segments = parse_config("test_config.yaml".into()).expect("config should parse");
-        let status_text = get_status_text(&segments);
-        println!("{}", status_text);
+        let status_text = segments
+            .iter()
+            .map(|s| s.compute_value())
+            .collect::<String>();
         assert_eq!(
             "Segment1 | Segment2 | hello world |  | %%% | $>>><<<",
             status_text

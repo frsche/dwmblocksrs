@@ -43,8 +43,8 @@ impl ProgramOutput {
     }
 }
 
-impl Into<SegmentKind> for ProgramOutput {
-    fn into(self) -> SegmentKind {
-        SegmentKind::ProgramOutput(self)
+impl From<ProgramOutput> for SegmentKind {
+    fn from(program_output: ProgramOutput) -> SegmentKind {
+        SegmentKind::ProgramOutput(program_output)
     }
 }
