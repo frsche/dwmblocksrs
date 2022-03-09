@@ -62,10 +62,10 @@ enum SegmentKindConfig {
 
 #[derive(Deserialize, Debug)]
 struct SegmentColorConfig {
-    text: Option<String>,
-    left_separator: Option<String>,
-    right_separator: Option<String>,
-    icon: Option<String>,
+    text_color: Option<String>,
+    left_separator_color: Option<String>,
+    right_separator_color: Option<String>,
+    icon_color: Option<String>,
 }
 
 #[derive(Debug, Default)]
@@ -99,16 +99,24 @@ pub(crate) fn parse_config(config: PathBuf) -> Result<Vec<Segment>, String> {
     } = serde_yaml::from_str(&config_str)
         .map_err(|e| SerdeError::new(config_str, e).to_string())?;
 
-    let script_dir = script_dir
-        .map(expand_path)
-        .unwrap_or_else(|| Ok(Default::default()))?;
-
-    if !script_dir.is_dir() {
-        return Err(format!(
-            "script directory '{}' does not exist.",
-            script_dir.to_str().unwrap()
-        ));
-    }
+    let script_dir = match script_dir {
+        // if a script directory was set in the config
+        Some(script_dir) => {
+            // do shell expansion
+            let script_dir = expand_path(script_dir)?;
+            // and check that is really exists
+            if !script_dir.is_dir() {
+                return Err(format!(
+                    "script directory '{}' does not exist.",
+                    script_dir.to_str().unwrap()
+                ));
+            }
+            script_dir
+        }
+        // otherwise, leave it empty
+        // this way, all scripts are expected to be normal paths
+        None => Default::default(),
+    };
 
     let coloring = SegmentColoring::from(coloring, &colors)?;
 
@@ -197,16 +205,16 @@ impl SegmentColoring {
         mapping: &HashMap<String, Color>,
     ) -> Result<SegmentColoring, String> {
         let SegmentColorConfig {
-            text,
-            left_separator,
-            right_separator,
-            icon,
+            text_color,
+            left_separator_color,
+            right_separator_color,
+            icon_color,
         } = c;
 
-        let text = Self::color_lookup(text, mapping)?;
-        let left_separator = Self::color_lookup(left_separator, mapping)?;
-        let right_separator = Self::color_lookup(right_separator, mapping)?;
-        let icon = Self::color_lookup(icon, mapping)?;
+        let text = Self::color_lookup(text_color, mapping)?;
+        let left_separator = Self::color_lookup(left_separator_color, mapping)?;
+        let right_separator = Self::color_lookup(right_separator_color, mapping)?;
+        let icon = Self::color_lookup(icon_color, mapping)?;
 
         Ok(Self {
             text,

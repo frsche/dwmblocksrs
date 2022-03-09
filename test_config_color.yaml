@@ -1,0 +1,18 @@
+left_separator: ">"
+right_separator: "<"
+
+colors: {
+  "red": 2,
+  "green": 3
+}
+
+left_separator_color: "green"
+text_color: "red"
+
+segments:
+    - constant: "test"
+      icon: "$"
+      icon_color: "red"
+      left_separator_color: "red"
+      right_separator_color: "green"
+    - constant: "segment"

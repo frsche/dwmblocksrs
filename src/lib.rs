@@ -60,4 +60,17 @@ mod tests {
             status_text
         );
     }
+
+    #[test]
+    fn test_sample_config_color() {
+        let mut segments = parse_config("test_config_color.yaml".into()).unwrap();
+        let status_text = segments
+            .iter_mut()
+            .map(|s| s.compute_value())
+            .collect::<String>();
+        assert_eq!(
+            "\x02>\x01\x02$\x01\x02test\01\03<\x01\x03>\x01\x02segment\x01<",
+            status_text
+        );
+    }
 }
