@@ -13,7 +13,7 @@ use crate::SegmentId;
 pub struct Segment {
     kind: Box<dyn SegmentKind>,
     update_interval: Option<Duration>,
-    pub signals: Vec<i32>,
+    pub signals: Vec<u32>,
 
     left_separator: String,
     right_separator: String,
@@ -29,7 +29,7 @@ impl Segment {
     pub fn new(
         kind: Box<dyn SegmentKind>,
         update_interval: Option<Duration>,
-        signals: Vec<i32>,
+        signals: Vec<u32>,
     ) -> Self {
         Self {
             kind,
@@ -45,7 +45,7 @@ impl Segment {
     pub(crate) fn new_from_config(
         kind: Box<dyn SegmentKind>,
         update_interval: Option<Duration>,
-        signals: Vec<i32>,
+        signals: Vec<u32>,
         left_separator: Option<String>,
         right_separator: Option<String>,
         icon: Option<String>,

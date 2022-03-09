@@ -1,15 +1,9 @@
 use std::{fs::read_to_string, path::PathBuf, time::Duration};
 
 use format_serde_error::SerdeError;
-use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 
 use crate::segments::{self, Segment, SegmentKind};
-
-lazy_static! {
-    static ref SIGRTMIN: i32 = libc::SIGRTMIN();
-    static ref SIGRTMAX: i32 = libc::SIGRTMAX();
-}
 
 #[derive(Deserialize, Serialize, Debug)]
 struct ConfigFile {
@@ -103,10 +97,11 @@ pub(crate) fn parse_config(config: PathBuf) -> Result<Vec<Segment>, String> {
 
     Ok(segments)
 }
+
 fn parse_segment(segment_config: SegmentConfig, config: &Configuration) -> Result<Segment, String> {
     let SegmentConfig {
         update_interval,
-        signals: mut signal_offsets,
+        mut signals,
         kind,
         left_separator,
         right_separator,
@@ -134,16 +129,8 @@ fn parse_segment(segment_config: SegmentConfig, config: &Configuration) -> Resul
     };
 
     if let Some(offset) = config.update_all_signal {
-        signal_offsets.push(offset);
+        signals.push(offset);
     }
-    let signals = signal_offsets
-                .into_iter()
-                .map(|offset| {
-                    let signal = offset as i32 + *SIGRTMIN;
-                    if signal >= *SIGRTMIN && signal <= *SIGRTMAX {Ok(signal)} else {
-                        Err(format!("signal offset {offset} results in signal {signal}, which is not in the valid range"))}
-                })
-                .collect::<Result<Vec<_>,_>>()?;
 
     let update_interval = update_interval.map(Duration::from_secs);
 

@@ -24,7 +24,7 @@ pub async fn run(segments: Vec<Segment>) -> Result<(), String> {
         segment.run_update_loop(id, tx.clone()).await;
     }
 
-    spawn_signal_handler(&segments, tx).await;
+    spawn_signal_handler(&segments, tx).await?;
 
     let mut status_bar = StatusBar::new(segments);
 
