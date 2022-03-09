@@ -12,7 +12,7 @@ dwm statusbar heavily inspired by [dwmblocks](https://github.com/torrinfail/dwmb
 # default separator that all segments use
 left_separator: "  "
 # scripts are expected to be in this folder
-script_dir: "~/.segments"
+script_dir: "~/.status_scripts"
 
 # signal that updates all the segments at once
 update_all_signal: 0
@@ -20,8 +20,8 @@ update_all_signal: 0
 # a mapping of the colors used in the config
 # see section 'Colors' below
 colors:
-      green: 2
-      red: 3
+      green: 10
+      red: 11
 
 # default colors
 # other options are left_separator_color, right_separator_color, icon_color
@@ -53,14 +53,17 @@ segments:
       icon: " "
       # the default left separator gets overwritten
       left_separator: " "
+      # as well as the default colors
       text_color: red
+      icon_color: red
+
 ```
 
 Run the statusbar with `dwmblocksrs -c example_config.yaml` or move the config file to `~/.config/dwmblocksrs/dwmblocksrs.yaml`.
 
 The above config file produces the following statusbar in dwm:
 
-![example](https://user-images.githubusercontent.com/35305292/157553366-dd719015-abc5-4a52-ad2d-c729bc971f59.jpg)
+![220310-0012-20](https://user-images.githubusercontent.com/35305292/157554869-0dbf84bb-f2c1-447c-aa1f-2e23029dd12b.png)
 
 (the battery segment is hidden because the script outputs an empty string)
 
