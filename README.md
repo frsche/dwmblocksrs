@@ -44,6 +44,8 @@ segments:
       left_separator: " "
 ```
 
+Run the statusbar with `dwmblocksrs -c example_config.yaml` or move the config file to `~/.config/dwmblocksrs/dwmblocksrs.yaml`.
+
 The above config file produces the following statusbar in dwm:
 ```
  墳 49%    So. 06. März 2022  16:13
