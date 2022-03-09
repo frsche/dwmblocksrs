@@ -15,13 +15,13 @@ use status_bar::StatusBar;
 pub(crate) type SegmentId = usize;
 
 /// Run the statusbar with the given segments
-async fn run(segments: Vec<Segment>) -> Result<(), String> {
+pub async fn run(segments: Vec<Segment>) -> Result<(), String> {
     // when a segment should get updated, it's id is send through this channel
     let (tx, mut rx) = channel::unbounded::<SegmentId>();
 
     // for each segment we spawn a task that requests updates according to the update period
-    for segment in &segments {
-        segment.run_update_loop(tx.clone()).await;
+    for (id, segment) in segments.iter().enumerate() {
+        segment.run_update_loop(id, tx.clone()).await;
     }
 
     spawn_signal_handler(&segments, tx).await;
@@ -49,9 +49,9 @@ mod tests {
 
     #[test]
     fn test_sample_config() {
-        let segments = parse_config("test_config.yaml".into()).expect("config should parse");
+        let mut segments = parse_config("test_config.yaml".into()).expect("config should parse");
         let status_text = segments
-            .iter()
+            .iter_mut()
             .map(|s| s.compute_value())
             .collect::<String>();
         assert_eq!(

@@ -14,7 +14,6 @@ pub struct Segment {
     kind: Box<dyn SegmentKind>,
     update_interval: Option<Duration>,
     pub signals: Vec<i32>,
-    segment_id: SegmentId,
 
     left_separator: String,
     right_separator: String,
@@ -23,15 +22,30 @@ pub struct Segment {
 }
 
 pub trait SegmentKind: Debug {
-    fn compute_value(&self) -> String;
+    fn compute_value(&mut self) -> String;
 }
 
 impl Segment {
-    pub(crate) fn new(
+    pub fn new(
         kind: Box<dyn SegmentKind>,
         update_interval: Option<Duration>,
         signals: Vec<i32>,
-        segment_id: SegmentId,
+    ) -> Self {
+        Self {
+            kind,
+            update_interval,
+            signals,
+            left_separator: Default::default(),
+            right_separator: Default::default(),
+            icon: Default::default(),
+            hide_if_empty: Default::default(),
+        }
+    }
+
+    pub(crate) fn new_from_config(
+        kind: Box<dyn SegmentKind>,
+        update_interval: Option<Duration>,
+        signals: Vec<i32>,
         left_separator: Option<String>,
         right_separator: Option<String>,
         icon: Option<String>,
@@ -50,7 +64,6 @@ impl Segment {
             kind,
             update_interval,
             signals,
-            segment_id,
 
             left_separator,
             right_separator,
@@ -59,17 +72,19 @@ impl Segment {
         }
     }
 
-    pub(crate) async fn run_update_loop(&self, channel: Sender<SegmentId>) {
+    pub(crate) async fn run_update_loop(&self, segment_id: SegmentId, channel: Sender<SegmentId>) {
         if let Some(interval) = self.update_interval {
-            let segment_id = self.segment_id;
+            let segment_id = segment_id;
             task::spawn(async move {
-                channel.send(segment_id).await.unwrap();
-                task::sleep(interval).await;
+                loop {
+                    channel.send(segment_id).await.unwrap();
+                    task::sleep(interval).await;
+                }
             });
         }
     }
 
-    pub(crate) fn compute_value(&self) -> String {
+    pub(crate) fn compute_value(&mut self) -> String {
         let new_value = self.kind.compute_value();
 
         if self.hide_if_empty && new_value.is_empty() {
@@ -110,7 +125,6 @@ mod tests {
                 kind: Box::new(Constant::new("test".into())),
                 update_interval: Default::default(),
                 signals: Default::default(),
-                segment_id: Default::default(),
                 left_separator: Default::default(),
                 right_separator: Default::default(),
                 icon: Default::default(),
@@ -124,13 +138,13 @@ mod tests {
 
         #[test]
         fn consant() {
-            let s: Segment = Default::default();
+            let mut s: Segment = Default::default();
             assert_eq!(&s.compute_value(), "test");
         }
 
         #[test]
         fn left_separator() {
-            let s = Segment {
+            let mut s = Segment {
                 left_separator: ">".into(),
                 ..Default::default()
             };
@@ -139,7 +153,7 @@ mod tests {
 
         #[test]
         fn right_separator() {
-            let s = Segment {
+            let mut s = Segment {
                 right_separator: "<".into(),
                 ..Default::default()
             };
@@ -148,7 +162,7 @@ mod tests {
 
         #[test]
         fn icon() {
-            let s = Segment {
+            let mut s = Segment {
                 icon: "$".into(),
                 ..Default::default()
             };
@@ -157,7 +171,7 @@ mod tests {
 
         #[test]
         fn all() {
-            let s = Segment {
+            let mut s = Segment {
                 left_separator: ">".into(),
                 right_separator: "<".into(),
                 icon: "$".into(),
@@ -168,7 +182,7 @@ mod tests {
 
         #[test]
         fn hide_if_empty_false() {
-            let s = Segment {
+            let mut s = Segment {
                 kind: Box::new(Constant::new("".into())),
                 left_separator: ">".into(),
                 right_separator: "<".into(),
@@ -180,7 +194,7 @@ mod tests {
 
         #[test]
         fn hide_if_empty_true() {
-            let s = Segment {
+            let mut s = Segment {
                 kind: Box::new(Constant::new("".into())),
                 left_separator: ">".into(),
                 right_separator: "<".into(),
@@ -194,11 +208,10 @@ mod tests {
         #[test]
         fn config_left_separator() {
             let kind = Box::new(Constant::new("test".into()));
-            let segment = Segment::new(
+            let mut segment = Segment::new_from_config(
                 kind,
                 None,
                 vec![],
-                0,
                 None,
                 None,
                 None,
@@ -216,11 +229,10 @@ mod tests {
         #[test]
         fn config_left_separator_overwrite() {
             let kind = Box::new(Constant::new("test".into()));
-            let segment = Segment::new(
+            let mut segment = Segment::new_from_config(
                 kind,
                 None,
                 vec![],
-                0,
                 Some("!".into()),
                 None,
                 None,

@@ -17,7 +17,7 @@ impl ProgramOutput {
 }
 
 impl SegmentKind for ProgramOutput {
-    fn compute_value(&self) -> String {
+    fn compute_value(&mut self) -> String {
         let output = match Command::new(&self.program).args(&self.args).output() {
             Ok(output) => output,
             Err(e) => {

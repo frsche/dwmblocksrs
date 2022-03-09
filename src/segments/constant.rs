@@ -12,7 +12,7 @@ impl Constant {
 }
 
 impl SegmentKind for Constant {
-    fn compute_value(&self) -> String {
+    fn compute_value(&mut self) -> String {
         self.text.clone()
     }
 }

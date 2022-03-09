@@ -14,7 +14,7 @@ pub(crate) struct StatusBar {
 }
 
 impl StatusBar {
-    pub fn new(segments: Vec<Segment>) -> Self {
+    pub fn new(mut segments: Vec<Segment>) -> Self {
         let display;
         let screen;
         let window;
@@ -26,7 +26,7 @@ impl StatusBar {
         }
 
         let segment_texts = segments
-            .iter()
+            .iter_mut()
             .map(|segment| segment.compute_value())
             .collect::<Vec<_>>();
 

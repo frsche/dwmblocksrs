@@ -5,7 +5,6 @@ use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 
 use crate::segments::{self, Segment, SegmentKind};
-use crate::SegmentId;
 
 lazy_static! {
     static ref SIGRTMIN: i32 = libc::SIGRTMIN();
@@ -54,7 +53,7 @@ enum SegmentKindConfig {
 }
 
 #[derive(Debug)]
-pub(crate) struct Configuration {
+pub struct Configuration {
     pub left_separator: Option<String>,
     pub right_separator: Option<String>,
     pub script_dir: PathBuf,
@@ -99,19 +98,12 @@ pub(crate) fn parse_config(config: PathBuf) -> Result<Vec<Segment>, String> {
 
     let segments = segments
         .into_iter()
-        .enumerate()
-        .map(|(segment_id, segment_config)| {
-            parse_segment(segment_config, segment_id, &configuration)
-        })
+        .map(|segment_config| parse_segment(segment_config, &configuration))
         .collect::<Result<Vec<Segment>, String>>()?;
 
     Ok(segments)
 }
-fn parse_segment(
-    segment_config: SegmentConfig,
-    segment_id: SegmentId,
-    config: &Configuration,
-) -> Result<Segment, String> {
+fn parse_segment(segment_config: SegmentConfig, config: &Configuration) -> Result<Segment, String> {
     let SegmentConfig {
         update_interval,
         signals: mut signal_offsets,
@@ -155,11 +147,10 @@ fn parse_segment(
 
     let update_interval = update_interval.map(Duration::from_secs);
 
-    Ok(Segment::new(
+    Ok(Segment::new_from_config(
         kind,
         update_interval,
         signals,
-        segment_id,
         left_separator,
         right_separator,
         icon,
