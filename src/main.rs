@@ -1,72 +1,45 @@
 mod config;
-pub mod segments;
+mod segments;
 mod signals;
+mod status_bar;
 
+use std::path::PathBuf;
+
+use async_std::channel;
 use async_std::prelude::*;
-use std::{ffi::CString, path::PathBuf, ptr};
-
-use async_std::channel::{self, Receiver};
 use clap::{Arg, Command};
 use config::parse_config;
 use log::{error, info, Level};
 use segments::Segment;
+use segments::SegmentId;
 use signals::spawn_signal_handler;
-use x11::xlib::{XCloseDisplay, XDefaultScreen, XOpenDisplay, XRootWindow, XStoreName};
+use status_bar::StatusBar;
 
-fn set_statusbar(status_text: &str) {
-    unsafe {
-        // https://github.com/hugglesfox/statusd/blob/main/src/xsetroot.rs
-        // https://github.com/KJ002/simple_status/blob/main/src/status.rs
-        let display = XOpenDisplay(ptr::null());
-        let screen = XDefaultScreen(display);
-        let window = XRootWindow(display, screen);
+async fn run(segments: Vec<Segment>) -> Result<(), String> {
+    // when a segment should get updated, it's id is send through this channel
+    let (tx, mut rx) = channel::unbounded::<SegmentId>();
 
-        let c_str = CString::new(status_text).unwrap();
-
-        XStoreName(display, window, c_str.as_ptr() as *const i8);
-
-        XCloseDisplay(display);
-    }
-}
-
-async fn update_loop(segments: Vec<Segment>, mut updates: Receiver<usize>) {
-    // a vector with the current text for each segment
-    let mut current_status = segments
-        .iter()
-        .map(|s| s.compute_value())
-        .collect::<Vec<_>>();
-
-    // set the initial status text
-    let mut last_status_text = current_status.join("");
-    set_statusbar(&last_status_text);
-
-    // wait for a new update
-    while let Some(segment_ref) = updates.next().await {
-        // compute the new value of the requested segment
-        current_status[segment_ref] = segments[segment_ref].compute_value();
-        // and compute the new status text
-        let status_text = current_status.join("");
-        // only set the status text if it is different than before
-        if last_status_text != status_text {
-            set_statusbar(&status_text);
-            last_status_text = status_text;
-        }
-    }
-}
-
-async fn run(config: PathBuf) -> Result<(), String> {
-    let segments = parse_config(config)?;
-
-    let (tx, rx) = channel::unbounded();
-
+    // for each segment we spawn a task that requests updates according to the update period
     for segment in &segments {
         segment.run_update_loop(tx.clone()).await;
     }
 
     spawn_signal_handler(&segments, tx).await;
-    update_loop(segments, rx).await;
+
+    let mut status_bar = StatusBar::new(segments);
+
+    // wait for a new update to arrive
+    while let Some(segment) = rx.next().await {
+        // and update that segment in the status bar
+        status_bar.update_segment(segment)
+    }
 
     Ok(())
+}
+
+pub async fn run_with_config(config_path: PathBuf) -> Result<(), String> {
+    let segments = parse_config(config_path)?;
+    run(segments).await
 }
 
 #[async_std::main]
@@ -96,7 +69,7 @@ async fn main() {
 
     info!("loading config file '{}'", config_path.to_str().unwrap());
 
-    if let Err(e) = run(config_path).await {
+    if let Err(e) = run_with_config(config_path).await {
         error!("{e}");
     }
 }
