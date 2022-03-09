@@ -59,7 +59,13 @@ segments:
 Run the statusbar with `dwmblocksrs -c example_config.yaml` or move the config file to `~/.config/dwmblocksrs/dwmblocksrs.yaml`.
 
 The above config file produces the following statusbar in dwm:
-```
- 墳 49%    So. 06. März 2022  16:13
-```
+
+![example](https://user-images.githubusercontent.com/35305292/157553366-dd719015-abc5-4a52-ad2d-c729bc971f59.jpg)
+
 (the battery segment is hidden because the script outputs an empty string)
+
+## Colors
+
+In the example above, two colors are defined. The values these numbers are mapped to are defined in the dwm config.h file. See [statuscolor](https://dwm.suckless.org/patches/statuscolors/) for better explanation.
+
+Colors are completly optional, and dwmblocksrs also works without the statuscolor patch in dwm. Besides that, the color-bytes explained in the statuscolor patch can also be manually generated from the script of a segment.
