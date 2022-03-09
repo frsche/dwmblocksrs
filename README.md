@@ -4,7 +4,7 @@ dwm statusbar heavily inspired by [dwmblocks](https://github.com/torrinfail/dwmb
 - Each segment of the statusbar has an individual update interval
 - Segments can also get manually updated by sending a signal to the process
 - The statusbar is configurable through a configuration file
-- You can also implement custom segments for the statusbar (see examples/custom_segment.rs)
+- You can also implement custom segments for the statusbar ([example](https://github.com/1117x/dwmblocksrs/blob/main/examples/custom_segment.rs))
 
 ## Example config:
 ```yaml
