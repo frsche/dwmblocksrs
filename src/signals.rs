@@ -47,7 +47,6 @@ pub(crate) async fn spawn_signal_handler(
         // when a signal arrives, look up which segments need updating and send them
         // through the channel
         while let Some(signal) = signals.next().await {
-            println!("signal arrived");
             for &segment_ref in &signals_map[&signal] {
                 channel.send(segment_ref).await.unwrap();
             }
