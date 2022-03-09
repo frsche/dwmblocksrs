@@ -147,6 +147,8 @@ mod tests {
     }
 
     mod segment {
+        use crate::color::Color;
+
         use super::*;
 
         #[test]
@@ -219,6 +221,77 @@ mod tests {
         }
 
         #[test]
+        fn color_text() {
+            let mut s = Segment {
+                coloring: SegmentColoring {
+                    text: Some(Color(2)),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
+            assert_eq!(&s.compute_value(), "\x02test\x01");
+        }
+
+        #[test]
+        fn color_left_separator() {
+            let mut s = Segment {
+                left_separator: ">".into(),
+                coloring: SegmentColoring {
+                    left_separator: Some(Color(2)),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
+            assert_eq!(&s.compute_value(), "\x02>\x01test");
+        }
+
+        #[test]
+        fn color_right_separator() {
+            let mut s = Segment {
+                right_separator: "<".into(),
+                coloring: SegmentColoring {
+                    right_separator: Some(Color(2)),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
+            assert_eq!(&s.compute_value(), "test\x02<\x01");
+        }
+
+        #[test]
+        fn color_icon() {
+            let mut s = Segment {
+                icon: "$".into(),
+                coloring: SegmentColoring {
+                    icon: Some(Color(2)),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
+            assert_eq!(&s.compute_value(), "\x02$\x01test");
+        }
+
+        #[test]
+        fn all_colors() {
+            let mut s = Segment {
+                left_separator: ">".into(),
+                right_separator: "<".into(),
+                icon: "$".into(),
+                coloring: SegmentColoring {
+                    left_separator: Some(Color(2)),
+                    icon: Some(Color(3)),
+                    text: Some(Color(4)),
+                    right_separator: Some(Color(5)),
+                },
+                ..Default::default()
+            };
+            assert_eq!(
+                &s.compute_value(),
+                "\x02>\x01\x03$\x01\x04test\x01\x05<\x01"
+            );
+        }
+
+        #[test]
         fn config_left_separator() {
             let kind = Box::new(Constant::new("test".into()));
             let mut segment = Segment::new_from_config(
@@ -262,6 +335,90 @@ mod tests {
                 },
             );
             assert_eq!(&segment.compute_value(), "!test")
+        }
+
+        #[test]
+        fn config_right_separator_overwrite() {
+            let kind = Box::new(Constant::new("test".into()));
+            let mut segment = Segment::new_from_config(
+                kind,
+                None,
+                vec![],
+                None,
+                Some("!".into()),
+                None,
+                false,
+                Default::default(),
+                &Configuration {
+                    left_separator: None,
+                    right_separator: Some(">".into()),
+                    script_dir: PathBuf::default(),
+                    update_all_signal: None,
+                    coloring: Default::default(),
+                },
+            );
+            assert_eq!(&segment.compute_value(), "test!")
+        }
+
+        #[test]
+        fn config_color() {
+            let kind = Box::new(Constant::new("test".into()));
+            let mut segment = Segment::new_from_config(
+                kind,
+                None,
+                vec![],
+                Some(">".into()),
+                Some("<".into()),
+                Some("$".into()),
+                false,
+                Default::default(),
+                &Configuration {
+                    coloring: SegmentColoring {
+                        left_separator: Some(Color(2)),
+                        icon: Some(Color(3)),
+                        text: Some(Color(4)),
+                        right_separator: Some(Color(5)),
+                    },
+                    ..Default::default()
+                },
+            );
+            assert_eq!(
+                &segment.compute_value(),
+                "\x02>\x01\x03$\x01\x04test\x01\x05<\x01"
+            )
+        }
+
+        #[test]
+        fn config_color_overwrite() {
+            let kind = Box::new(Constant::new("test".into()));
+            let mut segment = Segment::new_from_config(
+                kind,
+                None,
+                vec![],
+                Some(">".into()),
+                Some("<".into()),
+                Some("$".into()),
+                false,
+                SegmentColoring {
+                    left_separator: Some(Color(6)),
+                    icon: Some(Color(7)),
+                    text: Some(Color(8)),
+                    right_separator: Some(Color(9)),
+                },
+                &Configuration {
+                    coloring: SegmentColoring {
+                        left_separator: Some(Color(2)),
+                        icon: Some(Color(3)),
+                        text: Some(Color(4)),
+                        right_separator: Some(Color(5)),
+                    },
+                    ..Default::default()
+                },
+            );
+            assert_eq!(
+                &segment.compute_value(),
+                "\x06>\x01\x07$\x01\x08test\x01\x09<\x01"
+            )
         }
     }
 }

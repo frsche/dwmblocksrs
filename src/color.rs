@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use serde::Deserialize;
 
 #[derive(Deserialize, Debug, Clone, Copy)]
-pub struct Color(u8);
+pub struct Color(pub u8);
 
 impl Color {
     fn color(&self, text: &str) -> String {
@@ -30,9 +30,9 @@ impl SegmentColoring {
     pub(crate) fn or_default(self, default_coloring: &SegmentColoring) -> Self {
         Self {
             text: self.text.or(default_coloring.text),
-            left_separator: self.left_separator.or(default_coloring.text),
-            right_separator: self.right_separator.or(default_coloring.text),
-            icon: self.icon.or(default_coloring.text),
+            left_separator: self.left_separator.or(default_coloring.left_separator),
+            right_separator: self.right_separator.or(default_coloring.right_separator),
+            icon: self.icon.or(default_coloring.icon),
         }
     }
 }

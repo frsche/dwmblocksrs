@@ -68,7 +68,7 @@ struct SegmentColorConfig {
     icon: Option<String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Configuration {
     pub script_dir: PathBuf,
     pub update_all_signal: Option<u32>,
