@@ -69,7 +69,7 @@ mod tests {
             .map(|s| s.compute_value())
             .collect::<String>();
         assert_eq!(
-            "\x02>\x01\x02$\x01\x02test\01\03<\x01\x03>\x01\x02segment\x01<",
+            "\x02>\x01\x02$\x01\x02test\x01\x03<\x01\x03>\x01\x02segment\x01<",
             status_text
         );
     }
