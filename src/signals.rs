@@ -2,7 +2,8 @@ use async_std::{channel::Sender, prelude::*, task};
 use signal_hook_async_std::Signals;
 use std::collections::HashMap;
 
-use crate::segments::{Segment, SegmentId};
+use crate::segments::{Segment};
+use crate::SegmentId;
 
 pub(crate) async fn spawn_signal_handler(segments: &[Segment], channel: Sender<SegmentId>) {
     let signals_map = segments

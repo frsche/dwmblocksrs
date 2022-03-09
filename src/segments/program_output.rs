@@ -5,7 +5,7 @@ use log::warn;
 use super::SegmentKind;
 
 #[derive(Debug)]
-pub(crate) struct ProgramOutput {
+pub struct ProgramOutput {
     program: PathBuf,
     args: Vec<String>,
 }
@@ -14,8 +14,10 @@ impl ProgramOutput {
     pub fn new(program: PathBuf, args: Vec<String>) -> Self {
         ProgramOutput { program, args }
     }
+}
 
-    pub(crate) fn compute_value(&self) -> String {
+impl SegmentKind for ProgramOutput {
+    fn compute_value(&self) -> String {
         let output = match Command::new(&self.program).args(&self.args).output() {
             Ok(output) => output,
             Err(e) => {
@@ -43,8 +45,12 @@ impl ProgramOutput {
     }
 }
 
-impl From<ProgramOutput> for SegmentKind {
-    fn from(program_output: ProgramOutput) -> SegmentKind {
-        SegmentKind::ProgramOutput(program_output)
-    }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_segment_kinds;
+
+    test_segment_kinds!(
+        program: ProgramOutput::new("echo".into(),vec!["hello".into()]) => "hello",
+    );
 }

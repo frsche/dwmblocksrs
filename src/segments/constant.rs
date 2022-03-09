@@ -1,7 +1,7 @@
 use super::SegmentKind;
 
 #[derive(Debug)]
-pub(crate) struct Constant {
+pub struct Constant {
     text: String,
 }
 
@@ -9,14 +9,21 @@ impl Constant {
     pub fn new(text: String) -> Self {
         Self { text }
     }
+}
 
-    pub(crate) fn compute_value(&self) -> String {
+impl SegmentKind for Constant {
+    fn compute_value(&self) -> String {
         self.text.clone()
     }
 }
 
-impl From<Constant> for SegmentKind {
-    fn from(constant: Constant) -> SegmentKind {
-        SegmentKind::Constant(constant)
-    }
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+    use crate::test_segment_kinds;
+
+    test_segment_kinds!(
+        constant: Constant::new("constant".into()) => "constant",
+    );
 }

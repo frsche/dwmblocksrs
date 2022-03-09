@@ -1,7 +1,8 @@
 use std::{ffi::CString, ptr};
 use x11::xlib::{Display, XDefaultScreen, XOpenDisplay, XRootWindow, XStoreName, XSync};
 
-use crate::segments::{Segment, SegmentId};
+use crate::segments::Segment;
+use crate::SegmentId;
 
 pub(crate) struct StatusBar {
     display: *mut Display,

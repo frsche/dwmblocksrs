@@ -4,16 +4,14 @@ pub mod program_output;
 use std::time::Duration;
 
 use async_std::{channel::Sender, task};
+use std::fmt::Debug;
 
 use crate::config::Configuration;
-
-use self::{constant::Constant, program_output::ProgramOutput};
-
-pub(crate) type SegmentId = usize;
+use crate::SegmentId;
 
 #[derive(Debug)]
-pub(crate) struct Segment {
-    kind: SegmentKind,
+pub struct Segment {
+    kind: Box<dyn SegmentKind>,
     update_interval: Option<Duration>,
     pub signals: Vec<i32>,
     segment_id: SegmentId,
@@ -24,15 +22,13 @@ pub(crate) struct Segment {
     hide_if_empty: bool,
 }
 
-#[derive(Debug)]
-pub(crate) enum SegmentKind {
-    ProgramOutput(ProgramOutput),
-    Constant(Constant),
+pub trait SegmentKind: Debug {
+    fn compute_value(&self) -> String;
 }
 
 impl Segment {
     pub(crate) fn new(
-        kind: SegmentKind,
+        kind: Box<dyn SegmentKind>,
         update_interval: Option<Duration>,
         signals: Vec<i32>,
         segment_id: SegmentId,
@@ -87,21 +83,13 @@ impl Segment {
     }
 }
 
-impl SegmentKind {
-    fn compute_value(&self) -> String {
-        match self {
-            SegmentKind::ProgramOutput(p) => p.compute_value(),
-            SegmentKind::Constant(c) => c.compute_value(),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::segments::constant::Constant;
     use std::path::PathBuf;
 
-    use super::*;
-
+    #[macro_export]
     macro_rules! test_segment_kinds {
         ( $( $name:ident: $segment:expr => $expect:expr, )+ ) => {
             mod segment_kinds {
@@ -109,36 +97,26 @@ mod tests {
                 $(
                     #[test]
                     fn $name() {
-                    let kind : SegmentKind = $segment.into();
-                    assert_eq!(&kind.compute_value(), $expect);
+                    assert_eq!($segment.compute_value(), $expect);
                     }
                 )+
             }
         }
     }
 
-    test_segment_kinds!(
-        constant: Constant::new("constant".into()) => "constant",
-        program: ProgramOutput::new("echo".into(),vec!["hello".into()]) => "hello",
-    );
-
-    fn default_segment() -> Segment {
-        Segment::new(
-            Constant::new("test".into()).into(),
-            None,
-            vec![],
-            0,
-            None,
-            None,
-            None,
-            false,
-            &Configuration {
-                left_separator: None,
-                right_separator: None,
-                script_dir: PathBuf::default(),
-                update_all_signal: None,
-            },
-        )
+    impl Default for Segment {
+        fn default() -> Self {
+            Self {
+                kind: Box::new(Constant::new("test".into())),
+                update_interval: Default::default(),
+                signals: Default::default(),
+                segment_id: Default::default(),
+                left_separator: Default::default(),
+                right_separator: Default::default(),
+                icon: Default::default(),
+                hide_if_empty: Default::default(),
+            }
+        }
     }
 
     mod segment {
@@ -146,64 +124,76 @@ mod tests {
 
         #[test]
         fn consant() {
-            let s = default_segment();
+            let s: Segment = Default::default();
             assert_eq!(&s.compute_value(), "test");
         }
 
         #[test]
         fn left_separator() {
-            let mut s = default_segment();
-            s.left_separator = ">".into();
+            let s = Segment {
+                left_separator: ">".into(),
+                ..Default::default()
+            };
             assert_eq!(&s.compute_value(), ">test");
         }
 
         #[test]
         fn right_separator() {
-            let mut s = default_segment();
-            s.right_separator = "<".into();
+            let s = Segment {
+                right_separator: "<".into(),
+                ..Default::default()
+            };
             assert_eq!(&s.compute_value(), "test<");
         }
 
         #[test]
         fn icon() {
-            let mut s = default_segment();
-            s.icon = "$".into();
+            let s = Segment {
+                icon: "$".into(),
+                ..Default::default()
+            };
             assert_eq!(&s.compute_value(), "$test");
         }
 
         #[test]
         fn all() {
-            let mut s = default_segment();
-            s.left_separator = ">".into();
-            s.right_separator = "<".into();
-            s.icon = "$".into();
+            let s = Segment {
+                left_separator: ">".into(),
+                right_separator: "<".into(),
+                icon: "$".into(),
+                ..Default::default()
+            };
             assert_eq!(&s.compute_value(), ">$test<");
         }
 
         #[test]
         fn hide_if_empty_false() {
-            let mut s = default_segment();
-            s.kind = Constant::new("".into()).into();
-            s.left_separator = ">".into();
-            s.right_separator = "<".into();
-            s.icon = "$".into();
+            let s = Segment {
+                kind: Box::new(Constant::new("".into())),
+                left_separator: ">".into(),
+                right_separator: "<".into(),
+                icon: "$".into(),
+                ..Default::default()
+            };
             assert_eq!(&s.compute_value(), ">$<");
         }
 
         #[test]
         fn hide_if_empty_true() {
-            let mut s = default_segment();
-            s.kind = Constant::new("".into()).into();
-            s.left_separator = ">".into();
-            s.right_separator = "<".into();
-            s.icon = "$".into();
-            s.hide_if_empty = true;
+            let s = Segment {
+                kind: Box::new(Constant::new("".into())),
+                left_separator: ">".into(),
+                right_separator: "<".into(),
+                icon: "$".into(),
+                hide_if_empty: true,
+                ..Default::default()
+            };
             assert_eq!(&s.compute_value(), "");
         }
 
         #[test]
         fn config_left_separator() {
-            let kind = Constant::new("test".into()).into();
+            let kind = Box::new(Constant::new("test".into()));
             let segment = Segment::new(
                 kind,
                 None,
@@ -225,7 +215,7 @@ mod tests {
 
         #[test]
         fn config_left_separator_overwrite() {
-            let kind = Constant::new("test".into()).into();
+            let kind = Box::new(Constant::new("test".into()));
             let segment = Segment::new(
                 kind,
                 None,

@@ -4,7 +4,8 @@ use format_serde_error::SerdeError;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 
-use crate::segments::{self, Segment, SegmentId};
+use crate::segments::{self, Segment, SegmentKind};
+use crate::SegmentId;
 
 lazy_static! {
     static ref SIGRTMIN: i32 = libc::SIGRTMIN();
@@ -121,19 +122,22 @@ fn parse_segment(
         hide_if_empty,
     } = segment_config;
 
-    let kind = match kind {
-        SegmentKindConfig::Program { program, args } => {
-            segments::program_output::ProgramOutput::new(expand_path(program)?, args).into()
-        }
+    let kind: Box<dyn SegmentKind> = match kind {
+        SegmentKindConfig::Program { program, args } => Box::new(
+            segments::program_output::ProgramOutput::new(expand_path(program)?, args),
+        ),
         SegmentKindConfig::ShellScript { script, mut args } => {
             let mut script_path = config.script_dir.clone();
             script_path.push(expand_path(script)?);
             args.insert(0, script_path.to_str().unwrap().into());
 
-            segments::program_output::ProgramOutput::new("/bin/sh".into(), args).into()
+            Box::new(segments::program_output::ProgramOutput::new(
+                "/bin/sh".into(),
+                args,
+            ))
         }
         SegmentKindConfig::Constant { constant } => {
-            segments::constant::Constant::new(constant).into()
+            Box::new(segments::constant::Constant::new(constant))
         }
     };
 
