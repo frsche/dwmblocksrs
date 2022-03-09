@@ -1,3 +1,4 @@
+pub(crate) mod color;
 mod config;
 pub mod segments;
 mod signals;

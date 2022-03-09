@@ -6,6 +6,8 @@ use std::time::Duration;
 use async_std::{channel::Sender, task};
 use std::fmt::Debug;
 
+use crate::color::color;
+use crate::color::SegmentColoring;
 use crate::config::Configuration;
 use crate::SegmentId;
 
@@ -19,6 +21,8 @@ pub struct Segment {
     right_separator: String,
     icon: String,
     hide_if_empty: bool,
+
+    coloring: SegmentColoring,
 }
 
 pub trait SegmentKind: Debug {
@@ -39,6 +43,7 @@ impl Segment {
             right_separator: Default::default(),
             icon: Default::default(),
             hide_if_empty: Default::default(),
+            coloring: Default::default(),
         }
     }
 
@@ -50,6 +55,7 @@ impl Segment {
         right_separator: Option<String>,
         icon: Option<String>,
         hide_if_empty: bool,
+        coloring: SegmentColoring,
         config: &Configuration,
     ) -> Self {
         let left_separator = left_separator
@@ -59,6 +65,7 @@ impl Segment {
             .or_else(|| config.right_separator.clone())
             .unwrap_or_else(|| "".into());
         let icon = icon.unwrap_or_else(|| "".into());
+        let coloring = coloring.or_default(&config.coloring);
 
         Segment {
             kind,
@@ -69,6 +76,8 @@ impl Segment {
             right_separator,
             icon,
             hide_if_empty,
+
+            coloring,
         }
     }
 
@@ -93,7 +102,10 @@ impl Segment {
 
         format!(
             "{}{}{}{}",
-            self.left_separator, self.icon, new_value, self.right_separator
+            color(self.coloring.left_separator, self.left_separator.as_str()),
+            color(self.coloring.icon, self.icon.as_str()),
+            color(self.coloring.text, new_value.as_str()),
+            color(self.coloring.right_separator, self.right_separator.as_str())
         )
     }
 }
@@ -129,6 +141,7 @@ mod tests {
                 right_separator: Default::default(),
                 icon: Default::default(),
                 hide_if_empty: Default::default(),
+                coloring: Default::default(),
             }
         }
     }
@@ -216,11 +229,13 @@ mod tests {
                 None,
                 None,
                 false,
+                Default::default(),
                 &Configuration {
                     left_separator: Some(">".into()),
                     right_separator: None,
                     script_dir: PathBuf::default(),
                     update_all_signal: None,
+                    coloring: Default::default(),
                 },
             );
             assert_eq!(&segment.compute_value(), ">test")
@@ -237,11 +252,13 @@ mod tests {
                 None,
                 None,
                 false,
+                Default::default(),
                 &Configuration {
                     left_separator: Some(">".into()),
                     right_separator: None,
                     script_dir: PathBuf::default(),
                     update_all_signal: None,
+                    coloring: Default::default(),
                 },
             );
             assert_eq!(&segment.compute_value(), "!test")
