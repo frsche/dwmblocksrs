@@ -5,6 +5,7 @@ dwm statusbar heavily inspired by [dwmblocks](https://github.com/torrinfail/dwmb
 - Segments can also get manually updated by sending a signal to the process
 - The statusbar is configurable through a configuration file
 - You can also implement custom segments for the statusbar ([example](https://github.com/1117x/dwmblocksrs/blob/main/examples/custom_segment.rs))
+- Color support (with the [statuscolor](https://dwm.suckless.org/patches/statuscolors/) patch)
 
 ## Example config:
 ```yaml
@@ -15,6 +16,16 @@ script_dir: "~/.segments"
 
 # signal that updates all the segments at once
 update_all_signal: 0
+
+# a mapping of the colors used in the config
+# see section 'Colors' below
+colors:
+      green: 2
+      red: 3
+
+# default colors
+# other options are left_separator_color, right_separator_color, icon_color
+text_color: green
 
 segments:
       # scripts are run with sh
@@ -42,6 +53,7 @@ segments:
       icon: " "
       # the default left separator gets overwritten
       left_separator: " "
+      text_color: red
 ```
 
 Run the statusbar with `dwmblocksrs -c example_config.yaml` or move the config file to `~/.config/dwmblocksrs/dwmblocksrs.yaml`.
