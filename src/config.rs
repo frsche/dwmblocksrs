@@ -19,7 +19,7 @@ struct ConfigFile {
     script_dir: Option<String>,
 
     #[serde(default)]
-    colors: HashMap<String, Color>,
+    colors: HashMap<String, u8>,
     #[serde(flatten)]
     coloring: SegmentColorConfig,
 }
@@ -140,7 +140,7 @@ pub(crate) fn parse_config(config: PathBuf) -> Result<Vec<Segment>, String> {
 fn parse_segment(
     segment_config: SegmentConfig,
     config: &Configuration,
-    colors: &HashMap<String, Color>,
+    colors: &HashMap<String, u8>,
 ) -> Result<Segment, String> {
     let SegmentConfig {
         kind,
@@ -181,7 +181,7 @@ fn parse_segment(
 
     let update_interval = update_interval.map(Duration::from_secs);
 
-    Ok(Segment::new_from_config(
+    Segment::new_from_config(
         kind,
         update_interval,
         signals,
@@ -191,7 +191,7 @@ fn parse_segment(
         hide_if_empty,
         coloring,
         config,
-    ))
+    )
 }
 
 fn expand_path<T: AsRef<str>>(path_str: T) -> Result<PathBuf, String> {
@@ -202,7 +202,7 @@ fn expand_path<T: AsRef<str>>(path_str: T) -> Result<PathBuf, String> {
 impl SegmentColoring {
     fn from(
         c: SegmentColorConfig,
-        mapping: &HashMap<String, Color>,
+        mapping: &HashMap<String, u8>,
     ) -> Result<SegmentColoring, String> {
         let SegmentColorConfig {
             text_color,
@@ -224,16 +224,13 @@ impl SegmentColoring {
         })
     }
 
-    fn color_lookup(
-        c: Option<String>,
-        mapping: &HashMap<String, Color>,
-    ) -> Result<Option<Color>, String> {
+    fn color_lookup(c: Option<String>, mapping: &HashMap<String, u8>) -> Result<Color, String> {
         match c {
             Some(c) => match mapping.get(&c) {
-                Some(&c) => Ok(Some(c)),
+                Some(&c) => Ok(Color::Colored(c)),
                 None => Err(format!("undefined color: {c}")),
             },
-            None => Ok(None),
+            None => Ok(Color::Uncolored),
         }
     }
 }

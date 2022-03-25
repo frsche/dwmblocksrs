@@ -1,20 +1,18 @@
 use std::{ffi::CString, ptr};
 use x11::xlib::{Display, XDefaultScreen, XOpenDisplay, XRootWindow, XStoreName, XSync};
 
-use crate::segments::Segment;
 use crate::SegmentId;
 
 pub(crate) struct StatusBar {
     display: *mut Display,
     window: u64,
 
-    segments: Vec<Segment>,
     segment_texts: Vec<String>,
     current_text: String,
 }
 
 impl StatusBar {
-    pub fn new(mut segments: Vec<Segment>) -> Self {
+    pub fn new(num_segments: usize) -> Self {
         let display;
         let screen;
         let window;
@@ -25,10 +23,7 @@ impl StatusBar {
             window = XRootWindow(display, screen);
         }
 
-        let segment_texts = segments
-            .iter_mut()
-            .map(|segment| segment.compute_value())
-            .collect::<Vec<_>>();
+        let segment_texts = vec!["".to_string(); num_segments];
 
         let current_text = segment_texts.join("");
 
@@ -36,7 +31,6 @@ impl StatusBar {
             display,
             window,
 
-            segments,
             segment_texts,
             current_text,
         };
@@ -45,8 +39,8 @@ impl StatusBar {
         s
     }
 
-    pub fn update_segment(&mut self, segment: SegmentId) {
-        self.segment_texts[segment] = self.segments[segment].compute_value();
+    pub(crate) fn update_segment(&mut self, id: SegmentId, text: String) {
+        self.segment_texts[id] = text;
         let new_text = self.segment_texts.join("");
         if self.current_text != new_text {
             self.current_text = new_text;

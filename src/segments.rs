@@ -1,31 +1,40 @@
 pub mod constant;
 pub mod program_output;
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-use async_std::{channel::Sender, task};
+use async_std::channel::Sender;
+use async_std::future::timeout;
+use async_std::stream::StreamExt;
+use lazy_static::lazy_static;
+use log::warn;
+use signal_hook_async_std::Signals;
 use std::fmt::Debug;
 
-use crate::color::color;
-use crate::color::SegmentColoring;
+use crate::color::{Colorable, SegmentColoring};
 use crate::config::Configuration;
 use crate::SegmentId;
+
+lazy_static! {
+    static ref SIGRTMIN: i32 = libc::SIGRTMIN();
+    static ref SIGRTMAX: i32 = libc::SIGRTMAX();
+}
 
 #[derive(Debug)]
 pub struct Segment {
     kind: Box<dyn SegmentKind>,
     update_interval: Option<Duration>,
-    pub signals: Vec<u32>,
+    signals: Vec<i32>,
 
-    left_separator: String,
-    right_separator: String,
-    icon: String,
-    hide_if_empty: bool,
+    pub left_separator: String,
+    pub right_separator: String,
+    pub icon: String,
+    pub hide_if_empty: bool,
 
-    coloring: SegmentColoring,
+    pub coloring: SegmentColoring,
 }
 
-pub trait SegmentKind: Debug {
+pub trait SegmentKind: Debug + Send + Sync {
     fn compute_value(&mut self) -> String;
 }
 
@@ -33,31 +42,31 @@ impl Segment {
     pub fn new(
         kind: Box<dyn SegmentKind>,
         update_interval: Option<Duration>,
-        signals: Vec<u32>,
-    ) -> Self {
-        Self {
+        signal_offsets: Vec<u32>,
+    ) -> Result<Self, String> {
+        Ok(Self {
             kind,
             update_interval,
-            signals,
+            signals: Self::convert_signal_offsets(signal_offsets)?,
             left_separator: Default::default(),
             right_separator: Default::default(),
             icon: Default::default(),
             hide_if_empty: Default::default(),
             coloring: Default::default(),
-        }
+        })
     }
 
     pub(crate) fn new_from_config(
         kind: Box<dyn SegmentKind>,
         update_interval: Option<Duration>,
-        signals: Vec<u32>,
+        signal_offsets: Vec<u32>,
         left_separator: Option<String>,
         right_separator: Option<String>,
         icon: Option<String>,
         hide_if_empty: bool,
         coloring: SegmentColoring,
         config: &Configuration,
-    ) -> Self {
+    ) -> Result<Self, String> {
         let left_separator = left_separator
             .or_else(|| config.left_separator.clone())
             .unwrap_or_else(|| "".into());
@@ -67,10 +76,10 @@ impl Segment {
         let icon = icon.unwrap_or_else(|| "".into());
         let coloring = coloring.or_default(&config.coloring);
 
-        Segment {
+        Ok(Segment {
             kind,
             update_interval,
-            signals,
+            signals: Self::convert_signal_offsets(signal_offsets)?,
 
             left_separator,
             right_separator,
@@ -78,18 +87,53 @@ impl Segment {
             hide_if_empty,
 
             coloring,
-        }
+        })
     }
 
-    pub(crate) async fn run_update_loop(&self, segment_id: SegmentId, channel: Sender<SegmentId>) {
-        if let Some(interval) = self.update_interval {
-            let segment_id = segment_id;
-            task::spawn(async move {
-                loop {
-                    channel.send(segment_id).await.unwrap();
-                    task::sleep(interval).await;
-                }
-            });
+    fn convert_signal_offsets(signal_offsets: Vec<u32>) -> Result<Vec<i32>, String> {
+        let signals = signal_offsets
+            .into_iter()
+            .map(move |signal| signal as i32 + *SIGRTMIN)
+            .collect::<Vec<_>>();
+
+        if signals.iter().any(|signal| *signal > *SIGRTMAX) {
+            return Err("A used signal is greater than SIGRTMAX.".into());
+        }
+
+        Ok(signals)
+    }
+
+    pub(crate) async fn run_update_loop(
+        mut self,
+        id: SegmentId,
+        channel: Sender<(SegmentId, String)>,
+    ) {
+        // register_signal handler
+        let mut signals = Signals::new(&self.signals).unwrap();
+
+        loop {
+            let last_update = Instant::now();
+            // compute initial value for that segment and send it through the channel
+            channel.send((id, self.compute_value())).await.unwrap();
+
+            // if we have an update interval for that segment
+            if let Some(update_interval) = self.update_interval {
+                // calculate time since the last update
+                let duration = Instant::elapsed(&last_update);
+
+                // if we still have some time to wait until the next update
+                match update_interval.checked_sub(duration) {
+                    Some(duration) => {
+                        // wait for signals or timeout at that duration
+                        let _ = timeout(duration, signals.next()).await;
+                    }
+                    // otherwise, update directly
+                    None => warn!("execution of segment {id} took longer than update interval"),
+                };
+            } else {
+                // if we have no periodic updates, simply wait for signals
+                signals.next().await;
+            };
         }
     }
 
@@ -102,10 +146,10 @@ impl Segment {
 
         format!(
             "{}{}{}{}",
-            color(self.coloring.left_separator, self.left_separator.as_str()),
-            color(self.coloring.icon, self.icon.as_str()),
-            color(self.coloring.text, new_value.as_str()),
-            color(self.coloring.right_separator, self.right_separator.as_str())
+            self.left_separator.color(self.coloring.left_separator),
+            self.icon.color(self.coloring.icon),
+            new_value.color(self.coloring.text),
+            self.right_separator.color(self.coloring.right_separator)
         )
     }
 }
@@ -224,7 +268,7 @@ mod tests {
         fn color_text() {
             let mut s = Segment {
                 coloring: SegmentColoring {
-                    text: Some(Color(2)),
+                    text: Color::Colored(2),
                     ..Default::default()
                 },
                 ..Default::default()
@@ -237,7 +281,7 @@ mod tests {
             let mut s = Segment {
                 left_separator: ">".into(),
                 coloring: SegmentColoring {
-                    left_separator: Some(Color(2)),
+                    left_separator: Color::Colored(2),
                     ..Default::default()
                 },
                 ..Default::default()
@@ -250,7 +294,7 @@ mod tests {
             let mut s = Segment {
                 right_separator: "<".into(),
                 coloring: SegmentColoring {
-                    right_separator: Some(Color(2)),
+                    right_separator: Color::Colored(2),
                     ..Default::default()
                 },
                 ..Default::default()
@@ -263,7 +307,7 @@ mod tests {
             let mut s = Segment {
                 icon: "$".into(),
                 coloring: SegmentColoring {
-                    icon: Some(Color(2)),
+                    icon: Color::Colored(2),
                     ..Default::default()
                 },
                 ..Default::default()
@@ -278,10 +322,10 @@ mod tests {
                 right_separator: "<".into(),
                 icon: "$".into(),
                 coloring: SegmentColoring {
-                    left_separator: Some(Color(2)),
-                    icon: Some(Color(3)),
-                    text: Some(Color(4)),
-                    right_separator: Some(Color(5)),
+                    left_separator: Color::Colored(2),
+                    icon: Color::Colored(3),
+                    text: Color::Colored(4),
+                    right_separator: Color::Colored(5),
                 },
                 ..Default::default()
             };
@@ -310,7 +354,8 @@ mod tests {
                     update_all_signal: None,
                     coloring: Default::default(),
                 },
-            );
+            )
+            .unwrap();
             assert_eq!(&segment.compute_value(), ">test")
         }
 
@@ -333,7 +378,8 @@ mod tests {
                     update_all_signal: None,
                     coloring: Default::default(),
                 },
-            );
+            )
+            .unwrap();
             assert_eq!(&segment.compute_value(), "!test")
         }
 
@@ -356,7 +402,8 @@ mod tests {
                     update_all_signal: None,
                     coloring: Default::default(),
                 },
-            );
+            )
+            .unwrap();
             assert_eq!(&segment.compute_value(), "test!")
         }
 
@@ -374,14 +421,15 @@ mod tests {
                 Default::default(),
                 &Configuration {
                     coloring: SegmentColoring {
-                        left_separator: Some(Color(2)),
-                        icon: Some(Color(3)),
-                        text: Some(Color(4)),
-                        right_separator: Some(Color(5)),
+                        left_separator: Color::Colored(2),
+                        icon: Color::Colored(3),
+                        text: Color::Colored(4),
+                        right_separator: Color::Colored(5),
                     },
                     ..Default::default()
                 },
-            );
+            )
+            .unwrap();
             assert_eq!(
                 &segment.compute_value(),
                 "\x02>\x01\x03$\x01\x04test\x01\x05<\x01"
@@ -400,21 +448,22 @@ mod tests {
                 Some("$".into()),
                 false,
                 SegmentColoring {
-                    left_separator: Some(Color(6)),
-                    icon: Some(Color(7)),
-                    text: Some(Color(8)),
-                    right_separator: Some(Color(9)),
+                    left_separator: Color::Colored(6),
+                    icon: Color::Colored(7),
+                    text: Color::Colored(8),
+                    right_separator: Color::Colored(9),
                 },
                 &Configuration {
                     coloring: SegmentColoring {
-                        left_separator: Some(Color(2)),
-                        icon: Some(Color(3)),
-                        text: Some(Color(4)),
-                        right_separator: Some(Color(5)),
+                        left_separator: Color::Colored(2),
+                        icon: Color::Colored(3),
+                        text: Color::Colored(4),
+                        right_separator: Color::Colored(5),
                     },
                     ..Default::default()
                 },
-            );
+            )
+            .unwrap();
             assert_eq!(
                 &segment.compute_value(),
                 "\x06>\x01\x07$\x01\x08test\x01\x09<\x01"

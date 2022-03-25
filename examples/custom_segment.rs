@@ -31,14 +31,16 @@ fn main() {
         Duration::from_secs(10).into(),
         // and also update when signal SIGRTMIN+1 comes
         vec![1],
-    );
+    )
+    .unwrap();
 
     let arrow = Segment::new(
         Box::new(Constant::new("<--".into())),
         // the constant is never updated
         None,
         vec![],
-    );
+    )
+    .unwrap();
 
     let segments = vec![custom_segment, arrow];
     block_on(run(segments)).unwrap()
