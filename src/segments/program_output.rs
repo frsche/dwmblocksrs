@@ -8,11 +8,12 @@ use super::SegmentKind;
 pub struct ProgramOutput {
     program: PathBuf,
     args: Vec<String>,
+    trim: bool
 }
 
 impl ProgramOutput {
-    pub fn new(program: PathBuf, args: Vec<String>) -> Self {
-        ProgramOutput { program, args }
+    pub fn new(program: PathBuf, args: Vec<String>, trim: bool) -> Self {
+        ProgramOutput { program, args , trim}
     }
 }
 
@@ -41,7 +42,11 @@ impl SegmentKind for ProgramOutput {
             );
         }
 
-        String::from_utf8(output.stdout).unwrap().trim().into()
+        let mut output_string = String::from_utf8(output.stdout).unwrap();
+        if self.trim {
+            output_string = output_string.trim().into();
+        }
+        output_string
     }
 }
 
@@ -51,6 +56,6 @@ mod tests {
     use crate::test_segment_kinds;
 
     test_segment_kinds!(
-        program: ProgramOutput::new("echo".into(),vec!["hello".into()]) => "hello",
+        program: ProgramOutput::new("echo".into(),vec!["hello".into()], true) => "hello",
     );
 }

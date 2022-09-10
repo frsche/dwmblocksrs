@@ -49,15 +49,23 @@ enum SegmentKindConfig {
         program: String,
         #[serde(default)]
         args: Vec<String>,
+        #[serde(default="true_default")]
+        trim: bool
     },
     ShellScript {
         script: String,
         #[serde(default)]
         args: Vec<String>,
+        #[serde(default="true_default")]
+        trim: bool
     },
     Constant {
         constant: String,
     },
+}
+
+fn true_default() -> bool {
+    true
 }
 
 #[derive(Deserialize, Debug)]
@@ -155,10 +163,10 @@ fn parse_segment(
     } = segment_config;
 
     let kind: Box<dyn SegmentKind> = match kind {
-        SegmentKindConfig::Program { program, args } => Box::new(
-            segments::program_output::ProgramOutput::new(expand_path(program)?, args),
+        SegmentKindConfig::Program { program, args , trim } => Box::new(
+            segments::program_output::ProgramOutput::new(expand_path(program)?, args, trim),
         ),
-        SegmentKindConfig::ShellScript { script, mut args } => {
+        SegmentKindConfig::ShellScript { script, mut args , trim} => {
             let mut script_path = config.script_dir.clone();
             script_path.push(expand_path(script)?);
             args.insert(0, script_path.to_str().unwrap().into());
@@ -166,6 +174,7 @@ fn parse_segment(
             Box::new(segments::program_output::ProgramOutput::new(
                 "/bin/sh".into(),
                 args,
+                trim
             ))
         }
         SegmentKindConfig::Constant { constant } => {
